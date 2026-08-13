@@ -5,6 +5,6 @@ account: landoulsi-app-etudiant
 server: shinyapps.io
 hostUrl: https://api.shinyapps.io/v1
 appId: 16987058
-bundleId: 12406642
+bundleId: 12406705
 url: https://landoulsi-app-etudiant.shinyapps.io/analyse-notes-etudiants/
 version: 1
