@@ -125,11 +125,10 @@ ui <- page_sidebar(
     DTOutput("data_table")
   ),
 
-  uiOutput("classe_filter_ui"),
-
   card(
     class = "card-soft",
     card_header("Statistiques principales"),
+    uiOutput("classe_filter_ui"),
     uiOutput("stats_boxes")
   ),
 
@@ -333,18 +332,14 @@ server <- function(input, output, session) {
     classes <- sort(unique(df$classe))
     if (length(classes) < 2) return(NULL)
 
-    card(
-      class = "card-soft",
-      card_header("Filtre"),
-      div(
-        style = "max-width: 480px;",
-        selectInput(
-          "classe_filter",
-          "Afficher les statistiques et graphiques pour :",
-          choices = c("Toutes les classes", classes),
-          selected = "Toutes les classes",
-          width = "100%"
-        )
+    div(
+      style = "max-width: 480px; margin-bottom: 1rem;",
+      selectInput(
+        "classe_filter",
+        "Afficher les statistiques et graphiques pour :",
+        choices = c("Toutes les classes", classes),
+        selected = "Toutes les classes",
+        width = "100%"
       )
     )
   })
