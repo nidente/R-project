@@ -1,0 +1,92 @@
+---
+title: "Rapport d'analyse - Notes d'Etudiants"
+date: "`r format(Sys.Date(), '%d/%m/%Y')`"
+output:
+  html_document:
+    self_contained: true
+    theme: flatly
+    toc: true
+    toc_float: true
+params:
+  data: NULL
+  full_data: NULL
+  classe_label: "Toutes les classes"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, fig.width = 7, fig.height = 4)
+source("helpers.R")
+df <- params$data
+full_df <- if (is.null(params$full_data)) df else params$full_data
+s <- compute_stats(df)
+interp <- build_interpretation(s)
+```
+
+**Filtre applique :** `r params$classe_label`
+
+## Resume
+
+- **Effectif** : `r s$n_etudiants`
+- **Moyenne** : `r format_metric(s$moyenne)`
+- **Mediane** : `r format_metric(s$mediane)`
+- **Q1 / Q3** : `r format_metric(s$q1)` / `r format_metric(s$q3)`
+- **Min / Max** : `r format_metric(s$minimum)` / `r format_metric(s$maximum)`
+- **Ecart-type** : `r format_metric(s$ecart_type)`
+
+## Donnees analysees
+
+```{r}
+knitr::kable(
+  df,
+  col.names = c("Nom", "Classe", "Note", "Temps travail (h)", "Absences")
+)
+```
+
+## Graphiques
+
+### Histogramme des notes
+
+```{r}
+plot_histogram(df)
+```
+
+### Note vs Temps de travail
+
+```{r}
+plot_scatter_temps(df)
+```
+
+### Note vs Absences
+
+```{r}
+plot_scatter_absences(df)
+```
+
+### Notes par classe (toutes classes)
+
+```{r}
+plot_boxplot_classe(full_df)
+```
+
+## Comparaison par classe (toutes classes)
+
+```{r results='asis'}
+cs <- classe_summary(full_df)
+
+if (is.null(cs)) {
+  cat("Ajoutez des etudiants dans au moins deux classes differentes pour afficher une comparaison.")
+} else {
+  print(knitr::kable(
+    cs,
+    col.names = c("Classe", "Effectif", "Moyenne", "Mediane", "Ecart-type"),
+    digits = 2
+  ))
+}
+```
+
+## Interpretation
+
+- `r interp$text_t`
+- `r interp$text_a`
+- Un p < 0.05 indique une correlation statistiquement significative sur cet echantillon.
+- Utilisez ces indicateurs pour comparer des classes, ajuster les habitudes de travail et suivre l'evolution des performances.
