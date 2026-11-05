@@ -168,7 +168,7 @@ shiny::testServer(server, {
 
   assert_ok(s$n_etudiants == 2, "Effectif calcule correctement", "Effectif incorrect")
   assert_ok(!is.na(s$q1) && !is.na(s$q3), "Quartiles calcules", "Quartiles non calcules")
-  assert_ok(!is.na(s$pval_temps_note) || is.na(s$pval_temps_note), "p-value temps-note accessible", "p-value temps-note inaccessible")
+  assert_ok("pval_temps_note" %in% names(s) && is.na(s$pval_temps_note), "p-value temps-note presente et NA avec n < 3", "p-value temps-note absente ou non NA avec n < 3")
 
   cs <- classe_summary(analyzed_data())
   assert_ok(!is.null(cs), "Comparaison par classe disponible avec plusieurs classes", "La comparaison par classe devrait etre disponible")
@@ -207,5 +207,51 @@ shiny::testServer(server, {
   assert_ok(nrow(rv$df) == 0, "Reinitialisation des donnees fonctionne", "La reinitialisation a echoue")
   assert_ok(is.null(analyzed_data()), "Etat d'analyse reinitialise", "L'etat d'analyse n'a pas ete reinitialise")
 })
+
+# Etape 8: filtre de classe perime (le selecteur disparait ou la classe n'existe plus)
+shiny::testServer(server, {
+  session$setInputs(nom = "A1", classe = "A", note = 10, temps = 1, absences = 0, add_row = 1)
+  session$setInputs(nom = "B1", classe = "B", note = 15, temps = 2, absences = 1, add_row = 2)
+  session$setInputs(analyze = 1, classe_filter = "A")
+  assert_ok(stats()$n_etudiants == 1, "Le filtre sur la classe A est applique", "Le filtre sur la classe A n'est pas applique")
+
+  # Re-analyse avec une seule classe: le selecteur disparait, input$classe_filter reste "A"
+  session$setInputs(reset_data = 1)
+  session$setInputs(nom = "B2", classe = "B", note = 12, temps = 3, absences = 0, add_row = 2)
+  session$setInputs(nom = "B3", classe = "B", note = 14, temps = 4, absences = 1, add_row = 3)
+  session$setInputs(analyze = 2)
+  assert_ok(active_classe() == "Toutes les classes", "Un filtre perime revient a 'Toutes les classes'", "Un filtre perime n'est pas ignore")
+  assert_ok(stats()$n_etudiants == 2, "Les stats ignorent un filtre perime (une seule classe)", "Les stats sont vides a cause d'un filtre perime")
+
+  # Re-analyse avec plusieurs classes dont aucune n'est la classe filtree
+  session$setInputs(nom = "C1", classe = "C", note = 9, temps = 1, absences = 2, add_row = 4)
+  session$setInputs(analyze = 3)
+  assert_ok(stats()$n_etudiants == 3, "Les stats ignorent un filtre sur une classe disparue", "Les stats sont filtrees sur une classe disparue")
+})
+
+# Etape 9: import avec cellules vides (NA) dans nom/classe
+res_na <- prepare_import(data.frame(
+  nom = c(NA, "Zoe", "Yann"), classe = c("A", NA, "B"),
+  note = c(12, 13, 14), temps_travail = c(1, 1, 1), absences = c(0, 0, 0),
+  stringsAsFactors = FALSE
+))
+assert_ok(nrow(res_na$data) == 2 && res_na$n_invalid == 1, "prepare_import rejette un nom NA", "prepare_import accepte un nom NA")
+assert_ok(res_na$data$classe[1] == "Non classe", "prepare_import remplace une classe NA par 'Non classe'", "prepare_import ne remplace pas une classe NA")
+
+# Etape 10: CSV format Excel FR (point-virgule, virgule decimale, latin1) et export avec BOM
+tmp_csv_fr <- tempfile(fileext = ".csv")
+con_fr <- file(tmp_csv_fr, open = "w", encoding = "latin1")
+writeLines(c("nom;classe;note;temps_travail;absences", "Hélène;1ère A;12,5;3,5;1", "Léo;1ère A;14;2;0"), con_fr)
+close(con_fr)
+res_fr <- prepare_import(read_import_file(tmp_csv_fr, "export_excel.csv"))
+assert_ok(res_fr$ok && nrow(res_fr$data) == 2, "Import d'un CSV a point-virgule", "L'import d'un CSV a point-virgule a echoue")
+assert_ok(abs(res_fr$data$note[1] - 12.5) < 1e-12 && abs(res_fr$data$temps_travail[1] - 3.5) < 1e-12, "Import gere la virgule decimale", "La virgule decimale n'est pas geree")
+assert_ok(res_fr$data$nom[1] == "Hélène", "Import gere l'encodage latin1", "L'encodage latin1 n'est pas gere")
+
+tmp_export <- tempfile(fileext = ".csv")
+write_export_csv(res_fr$data, tmp_export)
+assert_ok(identical(readBin(tmp_export, "raw", 3), as.raw(c(0xef, 0xbb, 0xbf))), "L'export CSV commence par un BOM UTF-8", "L'export CSV n'a pas de BOM UTF-8")
+res_roundtrip <- prepare_import(read_import_file(tmp_export, "export.csv"))
+assert_ok(res_roundtrip$ok && identical(res_roundtrip$data$nom, res_fr$data$nom) && identical(res_roundtrip$data$note, res_fr$data$note), "Un export CSV se re-importe a l'identique", "Le re-import d'un export CSV differe des donnees d'origine")
 
 cat("===== TOUS LES TESTS SONT VALIDES =====\n")

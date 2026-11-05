@@ -58,6 +58,21 @@ validate_entry <- function(nom, note, temps, absences) {
   NULL
 }
 
+# Lit un CSV en detectant le separateur (virgule ou point-virgule, format Excel FR)
+# et l'encodage (UTF-8 avec ou sans BOM, sinon latin1).
+read_csv_auto <- function(datapath) {
+  lines <- readLines(datapath, warn = FALSE)
+  if (length(lines) == 0) stop("Fichier CSV vide.")
+
+  encoding <- if (all(validUTF8(lines))) "UTF-8-BOM" else "latin1"
+  header <- lines[1]
+  n_semicolon <- lengths(regmatches(header, gregexpr(";", header, fixed = TRUE)))
+  n_comma <- lengths(regmatches(header, gregexpr(",", header, fixed = TRUE)))
+  sep <- if (n_semicolon > n_comma) ";" else ","
+
+  read.csv(datapath, sep = sep, fileEncoding = encoding, stringsAsFactors = FALSE)
+}
+
 # Lit un fichier importe (CSV ou Excel) en data.frame, selon son extension.
 read_import_file <- function(datapath, filename) {
   ext <- tolower(tools::file_ext(filename))
@@ -65,8 +80,22 @@ read_import_file <- function(datapath, filename) {
   if (ext %in% c("xlsx", "xls")) {
     as.data.frame(readxl::read_excel(datapath, sheet = 1))
   } else {
-    read.csv(datapath, stringsAsFactors = FALSE)
+    read_csv_auto(datapath)
   }
+}
+
+# Exporte les donnees en CSV UTF-8 avec BOM, pour que les accents s'affichent correctement dans Excel.
+write_export_csv <- function(df, file) {
+  con <- file(file, open = "w", encoding = "UTF-8")
+  on.exit(close(con))
+  cat("﻿", file = con)
+  write.table(df, con, sep = ",", row.names = FALSE, qmethod = "double")
+}
+
+# Convertit en numerique en acceptant la virgule decimale ("12,5").
+parse_num <- function(x) {
+  if (is.numeric(x)) return(as.numeric(x))
+  suppressWarnings(as.numeric(gsub(",", ".", trimws(as.character(x)), fixed = TRUE)))
 }
 
 # Normalise et valide un data.frame importe (CSV ou Excel).
@@ -86,13 +115,14 @@ prepare_import <- function(imported_df) {
     transmute(
       nom = as.character(nom),
       classe = as.character(classe),
-      note = suppressWarnings(as.numeric(note)),
-      temps_travail = suppressWarnings(as.numeric(temps_travail)),
-      absences = suppressWarnings(as.numeric(absences))
+      note = parse_num(note),
+      temps_travail = parse_num(temps_travail),
+      absences = parse_num(absences)
     )
 
+  # nzchar(NA) vaut TRUE: tester NA explicitement (cellules Excel vides)
   valid_mask <- !is.na(imported$note) & !is.na(imported$temps_travail) & !is.na(imported$absences) &
-    nzchar(trimws(imported$nom)) &
+    !is.na(imported$nom) & nzchar(trimws(imported$nom)) &
     imported$note >= 0 & imported$note <= 20 &
     imported$temps_travail >= 0 & imported$absences >= 0
 
@@ -100,7 +130,7 @@ prepare_import <- function(imported_df) {
   valid_rows <- imported[valid_mask, , drop = FALSE]
 
   if (nrow(valid_rows) > 0) {
-    empty_classe <- !nzchar(trimws(valid_rows$classe))
+    empty_classe <- is.na(valid_rows$classe) | !nzchar(trimws(valid_rows$classe))
     valid_rows$classe[empty_classe] <- "Non classe"
   }
 

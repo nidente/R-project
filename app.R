@@ -299,7 +299,7 @@ server <- function(input, output, session) {
   output$export_csv <- downloadHandler(
     filename = function() paste0("notes_etudiants_", format(Sys.Date(), "%Y%m%d"), ".csv"),
     content = function(file) {
-      write.csv(rv$df, file, row.names = FALSE)
+      write_export_csv(rv$df, file)
     }
   )
 
@@ -313,12 +313,27 @@ server <- function(input, output, session) {
     showNotification("Analyse mise a jour.", type = "message")
   })
 
-  filtered_data <- reactive({
+  # Classe effectivement filtree. input$classe_filter garde sa derniere valeur meme quand
+  # le selecteur disparait (< 2 classes) ou que la classe n'existe plus apres re-analyse:
+  # dans ces cas on revient a "Toutes les classes".
+  active_classe <- reactive({
     df <- analyzed_data()
     req(df)
 
     sel <- input$classe_filter
-    if (is.null(sel) || sel == "Toutes les classes") {
+    if (is.null(sel) || n_distinct(df$classe) < 2 || !(sel %in% df$classe)) {
+      "Toutes les classes"
+    } else {
+      sel
+    }
+  })
+
+  filtered_data <- reactive({
+    df <- analyzed_data()
+    req(df)
+
+    sel <- active_classe()
+    if (sel == "Toutes les classes") {
       df
     } else {
       df %>% filter(classe == sel)
@@ -357,14 +372,7 @@ server <- function(input, output, session) {
         return()
       }
 
-      df <- filtered_data()
-      classe_label <- if (is.null(input$classe_filter) || input$classe_filter == "Toutes les classes") {
-        "Toutes les classes"
-      } else {
-        input$classe_filter
-      }
-
-      generate_report(df, file, full_df = base_df, classe_label = classe_label)
+      generate_report(filtered_data(), file, full_df = base_df, classe_label = active_classe())
     }
   )
 

@@ -38,8 +38,9 @@ Si vous modifiez les dependances du projet, mettez a jour le lockfile avec `R -q
 
 ## Import / Export
 
-- Le bouton "Telecharger les donnees (CSV)" exporte les lignes actuelles (colonnes: nom, classe, note, temps_travail, absences).
+- Le bouton "Telecharger les donnees (CSV)" exporte les lignes actuelles (colonnes: nom, classe, note, temps_travail, absences) en UTF-8 avec BOM, pour un affichage correct des accents dans Excel.
 - Le champ d'import accepte un fichier CSV (.csv) ou Excel (.xlsx, .xls) avec exactement ces colonnes (seule la premiere feuille est lue pour un fichier Excel). Les lignes invalides (nom vide, note hors de 0-20, temps/absences negatifs) sont ignorees et comptabilisees dans la notification.
+- Les CSV au format Excel francais sont acceptes: separateur `;` (detecte automatiquement), virgule decimale (`12,5`) et encodage latin1/Windows. Une classe vide devient "Non classe".
 - La case "Remplacer les donnees existantes" bascule entre ajout (par defaut) et remplacement complet du jeu de donnees.
 
 ## Rapport d'analyse
